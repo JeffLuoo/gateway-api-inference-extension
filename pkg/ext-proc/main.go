@@ -97,8 +97,11 @@ func main() {
 
 	metrics.Register()
 	go metrics.StartMetricsHandler(*metricsPort)
+<<<<<<< HEAD
 
 	// Create the data store used to cache watched resources
+=======
+>>>>>>> c966806 (add request metrics)
 	datastore := backend.NewK8sDataStore()
 
 	// Create the controllers and register them with the manager
