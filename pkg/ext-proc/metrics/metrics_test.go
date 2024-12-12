@@ -10,6 +10,8 @@ import (
 )
 
 const RequestTotalMetric = LLMServiceModelComponent + "_request_total"
+const RequestLatenciesMetric = LLMServiceModelComponent + "_request_duration_seconds"
+const RequestSizesMetric = LLMServiceModelComponent + "_request_sizes"
 
 func TestMonitorRequest(t *testing.T) {
 	type requests struct {
@@ -47,29 +49,29 @@ func TestMonitorRequest(t *testing.T) {
 				llmserviceName:  "s10",
 				modelName:       "m10",
 				targetModelName: "t10",
-				reqSize:         10,
+				reqSize:         1200,
 				elapsed:         time.Millisecond * 10,
 			},
 			{
 				llmserviceName:  "s10",
 				modelName:       "m10",
 				targetModelName: "t10",
-				reqSize:         20,
-				elapsed:         time.Millisecond * 20,
+				reqSize:         500,
+				elapsed:         time.Millisecond * 1600,
 			},
 			{
 				llmserviceName:  "s10",
 				modelName:       "m10",
 				targetModelName: "t11",
-				reqSize:         30,
-				elapsed:         time.Millisecond * 30,
+				reqSize:         2480,
+				elapsed:         time.Millisecond * 60,
 			},
 			{
 				llmserviceName:  "s20",
 				modelName:       "m20",
 				targetModelName: "t20",
-				reqSize:         40,
-				elapsed:         time.Millisecond * 40,
+				reqSize:         80,
+				elapsed:         time.Millisecond * 120,
 			},
 		},
 	}}
@@ -91,6 +93,31 @@ func TestMonitorRequest(t *testing.T) {
 			if err := testutil.GatherAndCompare(legacyregistry.DefaultGatherer, wantRequestTotal, RequestTotalMetric); err != nil {
 				t.Error(err)
 			}
+			wantRequestLatencies, err := os.Open("testdata/request_duration_seconds_metric")
+			defer func() {
+				if err := wantRequestLatencies.Close(); err != nil {
+					t.Error(err)
+				}
+			}()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := testutil.GatherAndCompare(legacyregistry.DefaultGatherer, wantRequestLatencies, RequestLatenciesMetric); err != nil {
+				t.Error(err)
+			}
+			wantRequestSizes, err := os.Open("testdata/request_sizes_metric")
+			defer func() {
+				if err := wantRequestSizes.Close(); err != nil {
+					t.Error(err)
+				}
+			}()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := testutil.GatherAndCompare(legacyregistry.DefaultGatherer, wantRequestSizes, RequestSizesMetric); err != nil {
+				t.Error(err)
+			}
+
 		})
 	}
 }
