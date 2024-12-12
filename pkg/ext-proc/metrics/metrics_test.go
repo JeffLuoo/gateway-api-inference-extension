@@ -9,15 +9,15 @@ import (
 	"k8s.io/component-base/metrics/testutil"
 )
 
-const RequestTotalMetric = InferenceModelComponent + "_request_total"
-const RequestLatenciesMetric = InferenceModelComponent + "_request_duration_seconds"
-const RequestSizesMetric = InferenceModelComponent + "_request_sizes"
+const RequestTotalMetric = LLMServiceModelComponent + "_request_total"
 
-func TestRecordRequestCounterandSizes(t *testing.T) {
+func TestMonitorRequest(t *testing.T) {
 	type requests struct {
+		llmserviceName  string
 		modelName       string
 		targetModelName string
 		reqSize         int
+		elapsed         time.Duration
 	}
 	scenarios := []struct {
 		name string
@@ -44,6 +44,32 @@ func TestRecordRequestCounterandSizes(t *testing.T) {
 				modelName:       "m20",
 				targetModelName: "t20",
 				reqSize:         80,
+				llmserviceName:  "s10",
+				modelName:       "m10",
+				targetModelName: "t10",
+				reqSize:         10,
+				elapsed:         time.Millisecond * 10,
+			},
+			{
+				llmserviceName:  "s10",
+				modelName:       "m10",
+				targetModelName: "t10",
+				reqSize:         20,
+				elapsed:         time.Millisecond * 20,
+			},
+			{
+				llmserviceName:  "s10",
+				modelName:       "m10",
+				targetModelName: "t11",
+				reqSize:         30,
+				elapsed:         time.Millisecond * 30,
+			},
+			{
+				llmserviceName:  "s20",
+				modelName:       "m20",
+				targetModelName: "t20",
+				reqSize:         40,
+				elapsed:         time.Millisecond * 40,
 			},
 		},
 	}}
@@ -51,8 +77,7 @@ func TestRecordRequestCounterandSizes(t *testing.T) {
 	for _, scenario := range scenarios {
 		t.Run(scenario.name, func(t *testing.T) {
 			for _, req := range scenario.reqs {
-				RecordRequestCounter(req.modelName, req.targetModelName)
-				RecordRequestSizes(req.modelName, req.targetModelName, req.reqSize)
+				MonitorRequest(req.llmserviceName, req.modelName, req.targetModelName, req.reqSize, req.elapsed)
 			}
 			wantRequestTotal, err := os.Open("testdata/request_total_metric")
 			defer func() {
@@ -66,19 +91,6 @@ func TestRecordRequestCounterandSizes(t *testing.T) {
 			if err := testutil.GatherAndCompare(legacyregistry.DefaultGatherer, wantRequestTotal, RequestTotalMetric); err != nil {
 				t.Error(err)
 			}
-			wantRequestSizes, err := os.Open("testdata/request_sizes_metric")
-			defer func() {
-				if err := wantRequestSizes.Close(); err != nil {
-					t.Error(err)
-				}
-			}()
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := testutil.GatherAndCompare(legacyregistry.DefaultGatherer, wantRequestSizes, RequestSizesMetric); err != nil {
-				t.Error(err)
-			}
-
 		})
 	}
 }
