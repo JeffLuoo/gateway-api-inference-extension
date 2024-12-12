@@ -13,6 +13,7 @@ import (
 	"inference.networking.x-k8s.io/gateway-api-inference-extension/pkg/ext-proc/backend"
 	"inference.networking.x-k8s.io/gateway-api-inference-extension/pkg/ext-proc/backend/vllm"
 	"inference.networking.x-k8s.io/gateway-api-inference-extension/pkg/ext-proc/handlers"
+	"inference.networking.x-k8s.io/gateway-api-inference-extension/pkg/ext-proc/metrics"
 	"inference.networking.x-k8s.io/gateway-api-inference-extension/pkg/ext-proc/scheduling"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -31,6 +32,8 @@ var (
 		"grpcHealthPort",
 		9003,
 		"The port used for gRPC liveness and readiness probes")
+	metricsPort = flag.Int(
+		"metricsPort", 9090, "The metrics port")
 	targetPodHeader = flag.String(
 		"targetPodHeader",
 		"target-pod",
@@ -91,6 +94,9 @@ func main() {
 	if err != nil {
 		klog.Fatalf("Failed to create controller manager: %v", err)
 	}
+
+	metrics.Register()
+	go metrics.StartMetricsHandler(*metricsPort)
 
 	// Create the data store used to cache watched resources
 	datastore := backend.NewK8sDataStore()
