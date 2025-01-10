@@ -6,6 +6,7 @@ import (
 
 	configPb "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	extProcPb "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
+	"inference.networking.x-k8s.io/gateway-api-inference-extension/pkg/ext-proc/metrics"
 	klog "k8s.io/klog/v2"
 )
 
@@ -86,6 +87,12 @@ func (s *Server) HandleResponseBody(reqCtx *RequestContext, req *extProcPb.Proce
 			},
 		},
 	}
+
+	metrics.RecordResponseSizes(reqCtx.Model, reqCtx.ResolvedTargetModel, len(body.ResponseBody.Body))
+	metrics.RecordInputTokens(reqCtx.Model, reqCtx.ResolvedTargetModel, res.Usage.PromptTokens)
+	metrics.RecordOutputTokens(reqCtx.Model, reqCtx.ResolvedTargetModel, res.Usage.CompletionTokens)
+
+	// metrics.MonitorResponse(reqCtx.Model, reqCtx.ResolvedTargetModel, res.Usage.PromptTokens, res.Usage.CompletionTokens)
 	return resp, nil
 }
 
