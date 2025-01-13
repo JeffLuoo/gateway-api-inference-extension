@@ -92,8 +92,8 @@ func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
 			klog.V(3).Infof("Request context after HandleResponseHeaders: %+v", reqCtx)
 		case *extProcPb.ProcessingRequest_ResponseBody:
 			resp, err = s.HandleResponseBody(reqCtx, req)
-			reqCtx.ResponseCompleteTimestamp = time.Now()
 			if err == nil && reqCtx.ResponseComplete {
+				reqCtx.ResponseCompleteTimestamp = time.Now()
 				metrics.RecordRequestLatencies(reqCtx.Model, reqCtx.ResolvedTargetModel, reqCtx.RequestReceivedTimestamp, reqCtx.ResponseCompleteTimestamp)
 			}
 			klog.V(3).Infof("Request context after HandleResponseBody: %+v", reqCtx)
