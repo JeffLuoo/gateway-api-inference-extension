@@ -83,18 +83,17 @@ func TestRecordRequestCounterandSizes(t *testing.T) {
 	}
 }
 
-
 func TestRecordRequestLatencies(t *testing.T) {
 	timeBaseline := time.Now()
 	type requests struct {
 		modelName       string
 		targetModelName string
-		receivedTime time.Time
-		completeTime time.Time
+		receivedTime    time.Time
+		completeTime    time.Time
 	}
 	scenarios := []struct {
-		name string
-		reqs []requests
+		name    string
+		reqs    []requests
 		invalid bool
 	}{{
 		name: "multiple requests",
@@ -102,40 +101,40 @@ func TestRecordRequestLatencies(t *testing.T) {
 			{
 				modelName:       "m10",
 				targetModelName: "t10",
-				receivedTime: timeBaseline,
-				completeTime: timeBaseline.Add(time.Millisecond * 10),
+				receivedTime:    timeBaseline,
+				completeTime:    timeBaseline.Add(time.Millisecond * 10),
 			},
 			{
 				modelName:       "m10",
 				targetModelName: "t10",
-				receivedTime: timeBaseline,
-				completeTime: timeBaseline.Add(time.Millisecond * 1600),
+				receivedTime:    timeBaseline,
+				completeTime:    timeBaseline.Add(time.Millisecond * 1600),
 			},
 			{
 				modelName:       "m10",
 				targetModelName: "t11",
-				receivedTime: timeBaseline,
-				completeTime: timeBaseline.Add(time.Millisecond * 60),
+				receivedTime:    timeBaseline,
+				completeTime:    timeBaseline.Add(time.Millisecond * 60),
 			},
 			{
 				modelName:       "m20",
 				targetModelName: "t20",
-				receivedTime: timeBaseline,
-				completeTime: timeBaseline.Add(time.Millisecond * 120),
+				receivedTime:    timeBaseline,
+				completeTime:    timeBaseline.Add(time.Millisecond * 120),
 			},
 		},
 	},
-	{
-		name: "invalid elapsed time",
-		reqs: []requests{
-			{
-				modelName:       "m10",
-				targetModelName: "t10",
-				receivedTime: timeBaseline.Add(time.Millisecond * 10),
-				completeTime: timeBaseline,
-			}},
+		{
+			name: "invalid elapsed time",
+			reqs: []requests{
+				{
+					modelName:       "m10",
+					targetModelName: "t10",
+					receivedTime:    timeBaseline.Add(time.Millisecond * 10),
+					completeTime:    timeBaseline,
+				}},
 			invalid: true,
-	}}
+		}}
 	Register()
 	for _, scenario := range scenarios {
 		t.Run(scenario.name, func(t *testing.T) {
