@@ -84,7 +84,7 @@ func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
 			resp, err = s.HandleRequestBody(reqCtx, req)
 			if err == nil {
 				metrics.RecordRequestCounter(reqCtx.Model, reqCtx.ResolvedTargetModel)
-			  metrics.RecordRequestSizes(reqCtx.Model, reqCtx.ResolvedTargetModel, reqCtx.RequestSize)
+				metrics.RecordRequestSizes(reqCtx.Model, reqCtx.ResolvedTargetModel, reqCtx.RequestSize)
 			}
 			klog.V(3).Infof("Request context after HandleRequestBody: %+v", reqCtx)
 		case *extProcPb.ProcessingRequest_ResponseHeaders:
@@ -131,12 +131,12 @@ func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
 
 // RequestContext stores context information during the life time of an HTTP request.
 type RequestContext struct {
-	TargetPod backend.Pod
-	Model     string
-	ResolvedTargetModel string
-	RequestReceivedTimestamp time.Time
+	TargetPod                 backend.Pod
+	Model                     string
+	ResolvedTargetModel       string
+	RequestReceivedTimestamp  time.Time
 	ResponseCompleteTimestamp time.Time
-	RequestSize int
-	Response  Response
-	ResponseComplete bool
+	RequestSize               int
+	Response                  Response
+	ResponseComplete          bool
 }
