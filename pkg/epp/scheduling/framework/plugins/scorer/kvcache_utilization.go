@@ -23,10 +23,12 @@ import (
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/plugins"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/scheduling/framework"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/scheduling/types"
+	"sigs.k8s.io/gateway-api-inference-extension/pkg/tracing"
 )
 
 const (
-	KvCacheUtilizationScorerType = "kv-cache-utilization-scorer"
+	KvCacheUtilizationScorerType         = "kv-cache-utilization-scorer"
+	KvCacheUtilizationScorerTypeSpanName = "scheduling_plugin_kv_cache_score"
 )
 
 // compile-time type assertion
@@ -61,7 +63,10 @@ func (s *KVCacheUtilizationScorer) WithName(name string) *KVCacheUtilizationScor
 }
 
 // Score returns the scoring result for the given list of pods based on context.
-func (s *KVCacheUtilizationScorer) Score(_ context.Context, _ *types.CycleState, _ *types.LLMRequest, pods []types.Pod) map[types.Pod]float64 {
+func (s *KVCacheUtilizationScorer) Score(ctx context.Context, _ *types.CycleState, _ *types.LLMRequest, pods []types.Pod) map[types.Pod]float64 {
+	ctx, span := tracing.StartGatewaySpan(ctx, KvCacheUtilizationScorerTypeSpanName)
+	defer span.End()
+
 	scores := make(map[types.Pod]float64, len(pods))
 	for _, pod := range pods {
 		scores[pod] = 1 - pod.GetMetrics().KVCacheUsagePercent

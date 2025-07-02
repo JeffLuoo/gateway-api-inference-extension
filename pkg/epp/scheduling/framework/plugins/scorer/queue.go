@@ -24,10 +24,12 @@ import (
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/plugins"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/scheduling/framework"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/scheduling/types"
+	"sigs.k8s.io/gateway-api-inference-extension/pkg/tracing"
 )
 
 const (
-	QueueScorerType = "queue-scorer"
+	QueueScorerType         = "queue-scorer"
+	QueueScorerTypeSpanName = "scheduling_plugin_queue_scorer"
 )
 
 // compile-time type assertion
@@ -63,7 +65,11 @@ func (s *QueueScorer) WithName(name string) *QueueScorer {
 }
 
 // Score returns the scoring result for the given list of pods based on context.
-func (s *QueueScorer) Score(_ context.Context, _ *types.CycleState, _ *types.LLMRequest, pods []types.Pod) map[types.Pod]float64 {
+func (s *QueueScorer) Score(ctx context.Context, _ *types.CycleState, _ *types.LLMRequest, pods []types.Pod) map[types.Pod]float64 {
+
+	ctx, span := tracing.StartGatewaySpan(ctx, QueueScorerTypeSpanName)
+	defer span.End()
+
 	minQueueSize := math.MaxInt
 	maxQueueSize := math.MinInt
 

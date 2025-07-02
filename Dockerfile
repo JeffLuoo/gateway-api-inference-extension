@@ -20,6 +20,7 @@ RUN go mod download
 COPY cmd/epp ./cmd/epp
 COPY pkg/common ./pkg/common
 COPY pkg/epp ./pkg/epp
+COPY pkg/tracing ./pkg/tracing
 COPY internal ./internal
 COPY apix ./apix
 COPY api ./api

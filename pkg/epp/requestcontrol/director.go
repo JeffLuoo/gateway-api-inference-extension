@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"sigs.k8s.io/gateway-api-inference-extension/apix/v1alpha2"
@@ -40,6 +41,7 @@ import (
 	errutil "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/util/error"
 	logutil "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/util/logging"
 	requtil "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/util/request"
+	"sigs.k8s.io/gateway-api-inference-extension/pkg/tracing"
 )
 
 // Scheduler defines the interface required by the Director for scheduling.
@@ -84,6 +86,9 @@ type Director struct {
 //
 // It always returns the requestContext even in the error case, as the request context is used in error handling.
 func (d *Director) HandleRequest(ctx context.Context, reqCtx *handlers.RequestContext) (*handlers.RequestContext, error) {
+	ctx, span := tracing.StartGatewaySpan(ctx, tracing.OperationRequestOrchestration)
+	defer span.End()
+
 	logger := log.FromContext(ctx)
 
 	// --- 1. Parse Request, Resolve Target Models, and Determine Parameters ---
@@ -92,7 +97,9 @@ func (d *Director) HandleRequest(ctx context.Context, reqCtx *handlers.RequestCo
 	reqCtx.IncomingModelName, ok = requestBodyMap["model"].(string)
 
 	if !ok {
-		return reqCtx, errutil.Error{Code: errutil.BadRequest, Msg: "model not found in request body"}
+		err := errutil.Error{Code: errutil.BadRequest, Msg: "model not found in request body"}
+		tracing.SetSpanError(span, err)
+		return reqCtx, err
 	}
 	if reqCtx.TargetModelName == "" {
 		// Default to incoming model name
@@ -102,8 +109,15 @@ func (d *Director) HandleRequest(ctx context.Context, reqCtx *handlers.RequestCo
 
 	prompt, err := requtil.ExtractPromptFromRequestBody(requestBodyMap)
 	if err != nil {
+		tracing.SetSpanError(span, err)
 		return reqCtx, err
 	}
+
+	span.SetAttributes(
+		attribute.String(tracing.AttrGenAIRequestModel, reqCtx.TargetModelName),
+		attribute.Int("gateway.prompt_length", len(prompt)),
+	)
+
 	infObjective := d.datastore.ObjectiveGet(reqCtx.ObjectiveKey)
 	if infObjective == nil {
 		logger.V(logutil.VERBOSE).Info("No associated InferenceObjective found, using default", "objectiveKey", reqCtx.ObjectiveKey)
@@ -130,28 +144,55 @@ func (d *Director) HandleRequest(ctx context.Context, reqCtx *handlers.RequestCo
 	ctx = log.IntoContext(ctx, logger)
 	logger.V(logutil.DEBUG).Info("LLM request assembled")
 
+	span.SetAttributes(
+		attribute.String(tracing.AttrGatewayTargetModel, reqCtx.TargetModelName),
+		// attribute.String(tracing.AttrGatewayRequestCriticality, string(requestCriticality)),
+	)
+
 	// --- 2. Admission Control check --
 	if err := d.admitRequest(ctx, *infObjective.Spec.Priority, reqCtx.FairnessID); err != nil {
+		tracing.SetSpanError(span, err)
 		return reqCtx, err
 	}
 
 	// --- 3. Call Scheduler (with the relevant candidate pods) ---
 	candidatePods := d.getCandidatePodsForScheduling(ctx, reqCtx.Request.Metadata)
 	if len(candidatePods) == 0 {
-		return reqCtx, errutil.Error{Code: errutil.ServiceUnavailable, Msg: "failed to find candidate pods for serving the request"}
+		err := errutil.Error{Code: errutil.ServiceUnavailable, Msg: "failed to find candidate pods for serving the request"}
+		tracing.SetSpanError(span, err)
+		return reqCtx, err
 	}
-	result, err := d.scheduler.Schedule(ctx, reqCtx.SchedulingRequest, candidatePods)
+
+	// span.SetAttributes(attribute.Int(tracing.AttrGatewayCandidatePods, len(candidatePods)))
+
+	// Create a child span for scheduling operation - this will connect to KV Cache Manager
+	schedulingCtx, schedulingSpan := tracing.StartGatewaySpan(ctx, tracing.OperationScheduling)
+	defer schedulingSpan.End()
+
+	result, err := d.scheduler.Schedule(schedulingCtx, reqCtx.SchedulingRequest, candidatePods)
 	if err != nil {
+		tracing.SetSpanError(schedulingSpan, err)
+		tracing.SetSpanError(span, err)
 		return reqCtx, errutil.Error{Code: errutil.InferencePoolResourceExhausted, Msg: fmt.Errorf("failed to find target pod: %w", err).Error()}
 	}
+
+	tracing.SetSpanSuccess(schedulingSpan)
 
 	// --- 4. Prepare Request (Populates RequestContext and call PreRequest plugins) ---
 	// Insert target endpoint to instruct Envoy to route requests to the specified target pod and attach the port number.
 	// Invoke PreRequest registered plugins.
 	reqCtx, err = d.prepareRequest(ctx, reqCtx, result)
 	if err != nil {
+		tracing.SetSpanError(span, err)
 		return reqCtx, err
 	}
+
+	if reqCtx.TargetEndpoint != "" {
+		span.SetAttributes(attribute.String(tracing.AttrGatewayTargetEndpoint, reqCtx.TargetEndpoint))
+	}
+
+	span.SetAttributes(attribute.String(tracing.AttrOperationOutcome, tracing.OutcomeSuccess))
+	tracing.SetSpanSuccess(span)
 
 	return reqCtx, nil
 }
